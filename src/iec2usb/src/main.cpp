@@ -20,8 +20,6 @@
 #include <IECSerialAdapterConfig.h>
 #include <IECSerialFile.h>
 
-IECSerialFile iecFile;
-
 #ifndef IEC_USE_LINE_DRIVERS
 // Direct wiring scheme
 IECBusHandler iecBus(
@@ -39,14 +37,31 @@ IECBusHandler iecBus(
   ADAPTER_PIN_RESET);
 #endif
 
+IECSerialFile* p_iecFile = nullptr;
+
 void setup()
 {
   Serial.begin(SERIAL_BAUD_RATE);
   Serial.setTimeout(5000);
-  iecBus.attachDevice(&iecFile);
-  iecBus.begin();
 
+  // Handshake
   Serial.println("<<< IEC Serial Adapter Started >>>");
+  String config = Serial.readStringUntil('\n');
+
+  // The PC can specify the device number to use by sending a configuration string like "D:8" (for device number 8).
+  // If no valid configuration is received then the default device number defined by IEC_DEVICE_ID will be used.
+  if (config.startsWith("D:") && config.length() > 2)
+  {
+    uint8_t devnr = strtoul(config.substring(2).c_str(), nullptr, 16);
+    p_iecFile = new IECSerialFile(devnr);
+  }
+  else
+  {
+    p_iecFile = new IECSerialFile();
+  }
+
+  iecBus.attachDevice(p_iecFile);
+  iecBus.begin();
 }
 
 void loop()

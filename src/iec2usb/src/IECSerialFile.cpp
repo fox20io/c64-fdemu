@@ -20,7 +20,7 @@
 #include <IECSerialAdapterConfig.h>
 #include <IECSerialFile.h>
 
-IECSerialFile::IECSerialFile() : IECFileDevice(IEC_DEVICE_ID)
+IECSerialFile::IECSerialFile(uint8_t devnr) : IECFileDevice(devnr)
 {
 }
 

@@ -31,7 +31,7 @@
 class IECSerialFile : public IECFileDevice
 {
  public: 
-  IECSerialFile();
+  IECSerialFile(uint8_t devnr = IEC_DEVICE_ID);
 
  protected:
   virtual void    begin();

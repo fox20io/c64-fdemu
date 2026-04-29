@@ -23,7 +23,8 @@
 param(
     [string]$PortName = "COM5",
     [int]$BaudRate = 115200,
-    [string]$BaseDir = "C:\"
+    [string]$BaseDir = "C:\",
+    [int]$DeviceID = -1 # -1=adapter default, 0-15=force specific device number
 )
 
 $ChunkSize = 256
@@ -455,6 +456,7 @@ function Handle-List([System.IO.Ports.SerialPort]$port) {
 Write-Host "=== C64 IEC File Server ==="
 Write-Host "Port: $PortName @ $BaudRate 8-N-1"
 Write-Host "Base directory: $(Resolve-Path $BaseDir)"
+Write-Host "Device ID: $(if ($DeviceID -ge 0 -and $DeviceID -le 15) { $DeviceID } else { 'adapter default' })"
 Write-Host ""
 
 function Close-AllChannels {
@@ -493,6 +495,12 @@ while ($true) {
                 # Drain any leftover bytes in the serial buffer
                 if ($port.BytesToRead -gt 0) {
                     $port.DiscardInBuffer()
+                }
+                if ($DeviceID -ge 0 -and $DeviceID -le 15) {
+                    Send-Line $port "D:$([Convert]::ToString($DeviceID, 16))"
+                    Write-Host "*** Set device ID to $DeviceID"
+                } else {
+                    Send-Line $port ""
                 }
                 Write-Host "*** All channels closed, buffer flushed. Ready."
                 Write-Host ""

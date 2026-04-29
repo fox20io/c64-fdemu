@@ -497,13 +497,15 @@ def main() -> None:
     parser.add_argument('--baud',    default=115200, type=int, help='Baud rate (default: 115200)')
     parser.add_argument('--basedir', default=os.path.expanduser('~'),
                         help='Base directory for .prg files (default: home dir)')
+    parser.add_argument('--devid',    default=-1, type=int, help='Device ID (default: adapter default)')
     args = parser.parse_args()
 
     base_dir = os.path.realpath(args.basedir)
 
     print("=== C64 IEC File Server ===")
-    print(f"Port   : {args.port} @ {args.baud} 8-N-1")
-    print(f"BaseDir: {base_dir}")
+    print(f"Port     : {args.port} @ {args.baud} 8-N-1")
+    print(f"BaseDir  : {base_dir}")
+    print(f"Device ID: {args.devid if args.devid >= 0 and args.devid <= 15 else 'adapter default'}")
     print()
 
     channels:    dict = {}
@@ -541,6 +543,11 @@ def main() -> None:
                     print(f"*** IEC driver reset detected: {line}")
                     close_all_channels(channels, read_starts)
                     port.reset_input_buffer()
+                    if args.devid >= 0 and args.devid <= 15:
+                        send_line(port, f"D:{args.devid:X}")
+                        print(f"*** Set device ID to {args.devid}")
+                    else:
+                        send_line(port, "")
                     print("*** All channels closed, buffer flushed. Ready.")
                     print()
                     continue

@@ -4,7 +4,7 @@
 
 The idea is to connect the C64 to the PC via its IEC serial port, using the Arduino Uno as a USB adapter. The goal is to enable the Commodore to use CBM DOS commands to browse and load program files directly from the PC with minimal effort - files that can be downloaded from various sources on the Internet.
 
-### How does it work
+### How does it work?
 
 1. Create a directory on your PC.
 2. Copy your C64 PRGs into this directory.
@@ -19,6 +19,7 @@ LOAD"$",9
 LOAD"$:0",9
 LOAD"$:1",9
 LOAD"*",9,1
+LOAD"PACMAN",8,1
 SAVE"MYPRG",9
 ```
 
@@ -31,6 +32,10 @@ SAVE"MYPRG",9
 - The server handles only .prg files. Disk image formats such as .d64 are not supported. You must use an external tool (e.g. DirMaster) to extract .prg files from disk images.
 - Keep in mind that the Commodore 64 LIST command can display only the last 22 PRG files on the screen, even if the LOAD"$" command returns more entries.
 
+### Additional Features
+- The IEC device ID can be configured from the PC side.
+- The file server can automatically reconnect to the adapter if the connection is interrupted - for example, if the user disconnects the USB cable or the PC enters sleep mode.
+
 ## IEC-to-USB Adapter
 
 The Arduino Uno must be connected to the Commodore 64 IEC bus connector using a 6-pin DIN plug. There are two ways to do this. Both require the 6-pin DIN connector, 4 or 5-core cable, and a male pin header. The firmware must also be configured correctly according to the selected wiring mode.
@@ -38,6 +43,9 @@ The Arduino Uno must be connected to the Commodore 64 IEC bus connector using a 
 > **Note**: The adapter firmware is based on the <a href="https://github.com/dhansel/IECDevice">IECDevice</a> library.
 
 > **Note**: The firmware project is based on PlatformIO. Building the project requires Visual Studio Code and the <a href="https://platformio.org">PlatformIO</a> extension. 
+
+> **Note**: The Arduino Nano can also be used as the basis for the adapter. However, it requires a different wiring setup and firmware configuration. This project has not been tested with the Arduino Nano.
+
 
 ### Configuration
 
@@ -48,7 +56,7 @@ All configuration settings can be found in the following source files:
 | Constant | Default value | Description |
 |---|---|---|
 | IEC_USE_LINE_DRIVERS | defined | Comment out this line if you are using the direct wiring scheme. |
-| IEC_DEVICE_ID | 9 | Device ID used by the C64 to access this device. The default device ID of the 1541 floppy disk drive is 8. |
+| IEC_DEVICE_ID | 9 | The default Device ID used by the C64 to access this device. The default device ID of the 1541 floppy disk drive is 8. The file server can override this number. |
 | SERIAL_BAUD_RATE | 115200 | Baud rate of the UART connection between the Arduino and the PC. |
 | CHUNK_SIZE | 128 | Maximum communication buffer size between the adapter and the PC. The default value is optimized for the Arduino Uno. Larger values may slow down the Arduino. |
 | ADAPTER_PIN_ATN | 2 | Arduino pin number connected to the ATN bus line. |
@@ -82,7 +90,7 @@ Use the default configuration when using this setup.
 
 ## File Server
 
-There are two ways to run a file server on your PC that can share a directory as a CBM DOS-compatible file system. The COM port, UART communication speed, and the directory containing the program files must be specified as parameters for the scripts.
+There are two ways to run a file server on your PC that can share a directory as a CBM DOS-compatible file system. The COM port, UART baud rate, program file directory, and the device ID used by the Commodore 64 to access the file server must be provided as parameters to the scripts.
 
 ### PowerShell
 
@@ -102,6 +110,11 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 
 # COM5 is the COM port assigned to the Arduino Uno. It may be different on your PC
 .\c64iec_fs.ps1 -PortName COM5 -BaseDir "D:\c64_files"
+```
+
+If you want to use a device ID other than the default one used by FDEMU, run the script with the -DeviceID parameter:
+```
+.\c64iec_fs.ps1 -PortName COM5 -BaseDir "D:\c64_files" -DeviceID 8
 ```
 
 ### Python
@@ -129,6 +142,12 @@ python c64iec_fs.py --port COM5 --baud 115200 --basedir D:\c64_files
 # Linux:
 python c64iec_fs.py --port /dev/ttyUSB0 --basedir /home/user/c64_files
 ```
+
+If you want to use a device ID other than the default one used by FDEMU, run the script with the -DeviceID parameter:
+```
+python c64iec_fs.py --port /dev/ttyUSB0 --basedir /home/user/c64_files --devid 8
+```
+
 
 # Gallery
 
