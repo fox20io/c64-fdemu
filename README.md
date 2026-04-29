@@ -112,7 +112,7 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 .\c64iec_fs.ps1 -PortName COM5 -BaseDir "D:\c64_files"
 ```
 
-If you want to use a device ID other than the default one used by FDEMU, run the script with the -DeviceID parameter:
+If you want to use a device ID other than the default one used by FDEMU, run the script with the **DeviceID** parameter:
 ```
 .\c64iec_fs.ps1 -PortName COM5 -BaseDir "D:\c64_files" -DeviceID 8
 ```
@@ -143,7 +143,7 @@ python c64iec_fs.py --port COM5 --baud 115200 --basedir D:\c64_files
 python c64iec_fs.py --port /dev/ttyUSB0 --basedir /home/user/c64_files
 ```
 
-If you want to use a device ID other than the default one used by FDEMU, run the script with the -DeviceID parameter:
+If you want to use a device ID other than the default one used by FDEMU, run the script with the **devid** parameter:
 ```
 python c64iec_fs.py --port /dev/ttyUSB0 --basedir /home/user/c64_files --devid 8
 ```
