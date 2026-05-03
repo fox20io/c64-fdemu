@@ -39,6 +39,9 @@
 #define ADAPTER_PIN_DATA_IN      4
 #define ADAPTER_PIN_RESET        7
 
+// These pins are only used if IEC_USE_LINE_DRIVERS is enabled in IECConfig.h.
+// They are the output pins for the CLK and DATA signals that go to the line drivers.
+// If you are using direct wiring without line drivers, these pins are not used and can be ignored.
 #define ADAPTER_PIN_CLK_OUT      5
 #define ADAPTER_PIN_DATA_OUT     6
 
@@ -47,7 +50,7 @@
 // disk drive, 9 for the second, and so on. You can choose any ID from 1 to 15,
 // but make sure it doesn't conflict with other devices on your bus (e.g. if you
 // have a real disk drive at ID 8, use a different ID for this device).
-#define IEC_DEVICE_ID            9
+#define IEC_DEVICE_ID            8
 
 // Size of the buffer used for each read/write operation. Larger sizes may
 // improve performance but require more memory on the microcontroller. The IEC

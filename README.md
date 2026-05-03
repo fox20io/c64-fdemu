@@ -15,19 +15,19 @@ The idea is to connect the C64 to the PC via its IEC serial port, using the Ardu
 
 ### Examples
 ```
-LOAD"$",9
-LOAD"$:0",9
-LOAD"$:1",9
-LOAD"*",9,1
+LOAD"$",8
+LOAD"$:0",8
+LOAD"$:1",8
+LOAD"*",8,1
 LOAD"PACMAN",8,1
-SAVE"MYPRG",9
+SAVE"MYPRG",8
 ```
 
 ### Limitations
 - Maximum 144 .prg files are supported in a directory.
 - Multi-load is not supported.
 - Fast loading is not supported.
-- CBM DOS wildcards are not fully supported.
+- CBM DOS wildcards are not supported.
 - The maximum file name length is 16. Longer file names are automatically truncated by the server.
 - The server handles only .prg files. Disk image formats such as .d64 are not supported. You must use an external tool (e.g. DirMaster) to extract .prg files from disk images.
 - Keep in mind that the Commodore 64 LIST command can display only the last 22 PRG files on the screen, even if the LOAD"$" command returns more entries.
@@ -49,14 +49,14 @@ The Arduino Uno must be connected to the Commodore 64 IEC bus connector using a 
 
 ### Configuration
 
-All configuration settings can be found in the following source files:
+All configuration settings can be found in the following two source files:
 - /lib/IECDevice-main/IECConfig.h
 - /include/IECSerialAdapterConfig.h
 
 | Constant | Default value | Description |
 |---|---|---|
 | IEC_USE_LINE_DRIVERS | defined | Comment out this line if you are using the direct wiring scheme. |
-| IEC_DEVICE_ID | 9 | The default Device ID used by the C64 to access this device. The default device ID of the 1541 floppy disk drive is 8. The file server can override this number. |
+| IEC_DEVICE_ID | 8 | The default Device ID used by the C64 to access this device. The default device ID of the 1541 floppy disk drive is 8. This number can also be overriden by the file server. |
 | SERIAL_BAUD_RATE | 115200 | Baud rate of the UART connection between the Arduino and the PC. |
 | CHUNK_SIZE | 128 | Maximum communication buffer size between the adapter and the PC. The default value is optimized for the Arduino Uno. Larger values may slow down the Arduino. |
 | ADAPTER_PIN_ATN | 2 | Arduino pin number connected to the ATN bus line. |
@@ -112,9 +112,9 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 .\c64iec_fs.ps1 -PortName COM5 -BaseDir "D:\c64_files"
 ```
 
-If you want to use a device ID other than the default one used by FDEMU, run the script with the **DeviceID** parameter:
+If you want to use a device ID other than the default one used by FDEMU, run the script with the **DevID** parameter:
 ```
-.\c64iec_fs.ps1 -PortName COM5 -BaseDir "D:\c64_files" -DeviceID 8
+.\c64iec_fs.ps1 -PortName COM5 -BaseDir "D:\c64_files" -DevID 9
 ```
 
 ### Python
@@ -145,7 +145,7 @@ python c64iec_fs.py --port /dev/ttyUSB0 --basedir /home/user/c64_files
 
 If you want to use a device ID other than the default one used by FDEMU, run the script with the **devid** parameter:
 ```
-python c64iec_fs.py --port /dev/ttyUSB0 --basedir /home/user/c64_files --devid 8
+python c64iec_fs.py --port /dev/ttyUSB0 --basedir /home/user/c64_files --devid 9
 ```
 
 

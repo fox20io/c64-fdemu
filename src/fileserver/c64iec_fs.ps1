@@ -3,7 +3,7 @@
 # Copyright (C) 2026 Norbert Laszlo
 # -----------------------------------------------------------------------------
 # Usage:
-#   .\c64iec_fs.ps1 [-PortName COM5] [-BaudRate 115200] [-BaseDir D:\c64_files]
+#   .\c64iec_fs.ps1 [-PortName COM5] [-BaudRate 115200] [-BaseDir D:\c64_files] [-DevID -1]
 # -----------------------------------------------------------------------------
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,14 +24,22 @@ param(
     [string]$PortName = "COM5",
     [int]$BaudRate = 115200,
     [string]$BaseDir = "C:\",
-    [int]$DeviceID = -1 # -1=adapter default, 0-15=force specific device number
+    [int]$DevID = -1 # -1=adapter default, 0-15=force specific device number
 )
+
+$VERSION = "1.0"
 
 $ChunkSize = 256
 
 # --- State: open file handles per channel (0-15) ---------------------------
 $channels  = @{}
 $readStart = @{}   # per-channel Stopwatch for speed measurement
+
+# --- Constants for directory listing generation -----------------------------
+$DIR_LIST_HEADER = [Text.Encoding]::ASCII.GetBytes("`0`0$([char]0x12)`" C64-FDEMU V$VERSION `" 00 2A`0")
+$DIR_LIST_FOOTER = [Text.Encoding]::ASCII.GetBytes("`0`0BLOCK FREE.$(' ' * 16)`0`0`0")
+$DIR_LIST_PRG = [Text.Encoding]::ASCII.GetBytes("PRG")
+$DIR_LIST_SPC27 = [Text.Encoding]::ASCII.GetBytes("$(' ' * 27)")
 
 # --- Helpers ----------------------------------------------------------------
 
@@ -55,7 +63,7 @@ function Send-Line([System.IO.Ports.SerialPort]$port, [string]$line) {
     $port.Write($bytes, 0, $bytes.Length)
 }
 
-function HexToBytes([string]$hex) {
+function ConvertFrom-HexString([string]$hex) {
     if ([string]::IsNullOrEmpty($hex)) { return ,@() }
     $count = $hex.Length / 2
     $buf = New-Object byte[] $count
@@ -65,7 +73,7 @@ function HexToBytes([string]$hex) {
     return ,$buf
 }
 
-function BytesToHex([byte[]]$data, [int]$length) {
+function ConvertTo-HexString([byte[]]$data, [int]$length) {
     if ($length -eq 0) { return "" }
     $sb = New-Object System.Text.StringBuilder ($length * 2)
     for ($i = 0; $i -lt $length; $i++) {
@@ -74,7 +82,7 @@ function BytesToHex([byte[]]$data, [int]$length) {
     return $sb.ToString()
 }
 
-function Hex-Dump([byte[]]$buf) {
+function Show-HexDump([byte[]]$buf) {
     Write-Host "\n"
     $offset = 0
     while ($offset -lt $buf.Length) {
@@ -94,7 +102,7 @@ function Hex-Dump([byte[]]$buf) {
 #   [2-3]  Line number  (LE 16-bit) — 0 for header, filesize/254 for files
 #   [4-30] Content
 #   [31]   0x00 terminator
-function Build-DirectoryListing {
+function New-DirectoryListing {
     $LoadAddress = 0x0801
     $LineSize = 32
     $MaxFiles = 144
@@ -114,13 +122,7 @@ function Build-DirectoryListing {
     $buf[3] = [byte](($nextAddr -shr 8) -band 0xFF)
 
     # Fixed header content
-    $header = @(0x00, 0x00, 0x12, [char]'"', [char]'*', [char]'*',
-      0x20, [char]'C', [char]'6', [char]'4', [char]'-', [char]'F', [char]'D', [char]'E',
-      [char]'M', [char]'U', 0x20, [char]'*', [char]'*', 0x20, [char]'"',
-      0x20, [char]'0', [char]'0', 0x20, [char]'2', [char]'A', 0x00)
-    for ($i = 0; $i -lt $header.Length; $i++) {
-        $buf[4 + $i] = $header[$i]
-    }
+    $DIR_LIST_HEADER.CopyTo($buf, 4)
 
     $offset = $LineSize
     foreach ($f in $files) {
@@ -132,9 +134,7 @@ function Build-DirectoryListing {
         $buf[$offset + 2] = [byte]($blocks -band 0xFF)
         $buf[$offset + 3] = [byte](($blocks -shr 8) -band 0xFF)
 
-        for ($i = 0; $i -lt 27; $i++) {
-            $buf[$offset + $i + 4] = 0x20
-        }
+        $DIR_LIST_SPC27.CopyTo($buf, $offset + 4)
 
         $name = $f.BaseName.ToUpper()
         $name = -join ($name.ToCharArray() | Where-Object { [int]$_ -ge 0x20 -and [int]$_ -le 0x7E })
@@ -146,14 +146,10 @@ function Build-DirectoryListing {
             $offsetName = 7
         }
         $buf[$offset + $offsetName - 1] = 0x22
-        for ($i = 0; $i -lt $nameBytes.Length; $i++) {
-            $buf[$offset + $offsetName + $i] = $nameBytes[$i]
-        }
+        $nameBytes.CopyTo($buf, $offset + $offsetName)
         $buf[$offset + $offsetName + 16] = 0x22
 
-        $buf[$offset + $offsetName + 18] = [char]'P'
-        $buf[$offset + $offsetName + 19] = [char]'R'
-        $buf[$offset + $offsetName + 20] = [char]'G'
+        $DIR_LIST_PRG.CopyTo($buf, $offset + $offsetName + 18)
         $buf[$offset + 31] = 0x00
 
         $offset += $LineSize
@@ -163,22 +159,14 @@ function Build-DirectoryListing {
     $nextOff = $offset + $LineSize + $LoadAddress
     $buf[$offset + 0] = [byte]($nextOff -band 0xFF)
     $buf[$offset + 1] = [byte](($nextOff -shr 8) -band 0xFF)
-    $footer = @(
-        0x00, 0x00, [char]'B', [char]'L', [char]'O', [char]'C',
-        [char]'K', 0x20, [char]'F', [char]'R', [char]'E', [char]'E', [char]'.', 0x20,
-        0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
-        0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x00, 0x00, 0x00
-    )
-    for ($i = 0; $i -lt $footer.Length; $i++) {
-        $buf[$offset + $i + 2] = $footer[$i]
-    }
+    $DIR_LIST_FOOTER.CopyTo($buf, $offset + 2)
 
     return ,$buf
 }
 
 # --- Command handlers -------------------------------------------------------
 
-function Handle-Open([System.IO.Ports.SerialPort]$port, [string[]]$fields) {
+function Invoke-OpenHandler([System.IO.Ports.SerialPort]$port, [string[]]$fields) {
     if ($fields.Length -lt 3) {
         Write-Host "[OPEN] malformed"
         Send-Line $port "E0"
@@ -209,7 +197,7 @@ function Handle-Open([System.IO.Ports.SerialPort]$port, [string[]]$fields) {
             return
         }
         try {
-            $contentBytes = Build-DirectoryListing
+            $contentBytes = New-DirectoryListing
             $stream = New-Object System.IO.MemoryStream (,$contentBytes)
             $channels[$channel] = $stream
             $fileCount = (Get-ChildItem -Path $BaseDir -File).Count
@@ -275,7 +263,7 @@ function Handle-Open([System.IO.Ports.SerialPort]$port, [string[]]$fields) {
     }
 }
 
-function Handle-Close([System.IO.Ports.SerialPort]$port, [string[]]$fields) {
+function Invoke-CloseHandler([System.IO.Ports.SerialPort]$port, [string[]]$fields) {
     if ($fields.Length -lt 2) {
         Write-Host "[CLOSE] malformed"
         Send-Line $port "E0"
@@ -302,7 +290,7 @@ function Handle-Close([System.IO.Ports.SerialPort]$port, [string[]]$fields) {
     }
 }
 
-function Handle-Read([System.IO.Ports.SerialPort]$port, [string[]]$fields) {
+function Invoke-ReadHandler([System.IO.Ports.SerialPort]$port, [string[]]$fields) {
     if ($fields.Length -lt 2) {
         Write-Host "[READ] malformed"
         Send-Line $port "E0"
@@ -383,7 +371,7 @@ function Handle-Read([System.IO.Ports.SerialPort]$port, [string[]]$fields) {
     }
 }
 
-function Handle-Write([System.IO.Ports.SerialPort]$port, [string[]]$fields) {
+function Invoke-WriteHandler([System.IO.Ports.SerialPort]$port, [string[]]$fields) {
     if ($fields.Length -lt 4) {
         Write-Host "[WRITE] malformed"
         Send-Line $port "E0"
@@ -435,7 +423,7 @@ function Handle-Write([System.IO.Ports.SerialPort]$port, [string[]]$fields) {
     }
 }
 
-function Handle-List([System.IO.Ports.SerialPort]$port) {
+function Invoke-ListHandler([System.IO.Ports.SerialPort]$port) {
     Write-Host "[LIST]" -NoNewline
 
     try {
@@ -453,10 +441,10 @@ function Handle-List([System.IO.Ports.SerialPort]$port) {
 
 # --- Main loop --------------------------------------------------------------
 
-Write-Host "=== C64 IEC File Server ==="
+Write-Host "=== C64 IEC File Server - Version $VERSION ==="
 Write-Host "Port: $PortName @ $BaudRate 8-N-1"
 Write-Host "Base directory: $(Resolve-Path $BaseDir)"
-Write-Host "Device ID: $(if ($DeviceID -ge 0 -and $DeviceID -le 15) { $DeviceID } else { 'adapter default' })"
+Write-Host "Device ID: $(if ($DevID -ge 0 -and $DevID -le 15) { $DevID } else { 'adapter default' })"
 Write-Host ""
 
 function Close-AllChannels {
@@ -496,9 +484,9 @@ while ($true) {
                 if ($port.BytesToRead -gt 0) {
                     $port.DiscardInBuffer()
                 }
-                if ($DeviceID -ge 0 -and $DeviceID -le 15) {
-                    Send-Line $port "D:$([Convert]::ToString($DeviceID, 16))"
-                    Write-Host "*** Set device ID to $DeviceID"
+                if ($DevID -ge 0 -and $DevID -le 15) {
+                    Send-Line $port "D:$([Convert]::ToString($DevID, 16))"
+                    Write-Host "*** Set device ID to $DevID"
                 } else {
                     Send-Line $port ""
                 }
@@ -514,11 +502,11 @@ while ($true) {
             }
 
             switch ($fields[0]) {
-                "O" { Handle-Open  $port $fields }
-                "C" { Handle-Close $port $fields }
-                "R" { Handle-Read  $port $fields }
-                "W" { Handle-Write $port $fields }
-                "L" { Handle-List  $port }
+                "O" { Invoke-OpenHandler  $port $fields }
+                "C" { Invoke-CloseHandler $port $fields }
+                "R" { Invoke-ReadHandler  $port $fields }
+                "W" { Invoke-WriteHandler $port $fields }
+                "L" { Invoke-ListHandler  $port }
                 default {
                     Write-Host "[UNKNOWN] cmd='$($fields[0])' - ignoring"
                 }

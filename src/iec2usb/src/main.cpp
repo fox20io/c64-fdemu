@@ -45,7 +45,7 @@ void setup()
   Serial.setTimeout(5000);
 
   // Handshake
-  Serial.println("<<< IEC Serial Adapter Started >>>");
+  Serial.println("<<< IEC Serial Adapter v1.0 Started >>>");
   String config = Serial.readStringUntil('\n');
 
   // The PC can specify the device number to use by sending a configuration string like "D:8" (for device number 8).

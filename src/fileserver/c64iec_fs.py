@@ -6,8 +6,8 @@
 # Requirements:
 #   pip install pyserial
 # Usage:
-#   python c64iec_fs.py [--port COM5] [--baud 115200] [--basedir C:\]
-#   python c64iec_fs.py --port /dev/ttyUSB0 --baud 115200 --basedir /home/user/c64files
+#   python c64iec_fs.py [--port COM5] [--baud 115200] [--basedir C:\] --devid -1
+#   python c64iec_fs.py --port /dev/ttyUSB0 --baud 115200 --basedir /home/user/c64files --devid -1
 # -----------------------------------------------------------------------------
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -38,8 +38,14 @@ except ImportError:
     print("ERROR: pyserial is not installed. Run: pip install pyserial")
     sys.exit(1)
 
+VERSION = "1.0"
+
 CHUNK_SIZE      = 256
 RECONNECT_DELAY = 3   # seconds between reconnect attempts
+
+DIR_LIST_HEADER = f"\x00\x00\x12\" C64-FDEMU V{VERSION} \" 00 2A\x00".encode('ascii')
+DIR_LIST_FOOTER = b"\x00\x00BLOCK FREE.                \x00\x00\x00"
+DIR_LIST_SPC27  = b" " * 27
 
 _stop_event = threading.Event()   # set on Ctrl+C to exit all loops
 
@@ -129,8 +135,7 @@ def build_directory_listing(base_dir: str) -> bytes:
     buf[3] = (next_addr >> 8) & 0xFF
 
     # Line content (line number = 0, reverse-video quote, disk name, id)
-    header_content = b"\x00\x00\x12\"** C64-FDEMU ***\" 00 2A\x00"
-    buf[4:4 + len(header_content)] = header_content
+    buf[4:4 + len(DIR_LIST_HEADER)] = DIR_LIST_HEADER
 
     offset = LINE_SIZE
 
@@ -144,8 +149,7 @@ def build_directory_listing(base_dir: str) -> bytes:
         buf[offset + 3] = (blocks >> 8) & 0xFF
 
         # Fill content area with spaces
-        for i in range(27):
-            buf[offset + 4 + i] = 0x20
+        buf[offset + 4 : offset + 4 + len(DIR_LIST_SPC27)] = DIR_LIST_SPC27
 
         name = os.path.splitext(f.name)[0].upper()
         # Keep only printable ASCII
@@ -181,12 +185,10 @@ def build_directory_listing(base_dir: str) -> bytes:
     # Exactly 30 bytes: line-number (2) + text (27) + null terminator (1).
     # The two 0x00 bytes that follow (the buffer's trailing "+2") are already
     # zero and serve as the end-of-BASIC program marker.
-    footer_content = b"\x00\x00BLOCK FREE.                \x00\x00\x00"
     next_off = LOAD_ADDRESS + offset + LINE_SIZE
     buf[offset + 0] = next_off & 0xFF
     buf[offset + 1] = (next_off >> 8) & 0xFF
-    buf[offset + 2 : offset + 2 + len(footer_content)] = footer_content
-
+    buf[offset + 2 : offset + 2 + len(DIR_LIST_FOOTER)] = DIR_LIST_FOOTER
     return bytes(buf)
 
 
@@ -502,7 +504,7 @@ def main() -> None:
 
     base_dir = os.path.realpath(args.basedir)
 
-    print("=== C64 IEC File Server ===")
+    print(f"=== C64 IEC File Server - Version {VERSION} ===")
     print(f"Port     : {args.port} @ {args.baud} 8-N-1")
     print(f"BaseDir  : {base_dir}")
     print(f"Device ID: {args.devid if args.devid >= 0 and args.devid <= 15 else 'adapter default'}")
